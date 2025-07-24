@@ -7,17 +7,19 @@ namespace AIWeb.Controllers;
 public class MatchController : ControllerBase
 {
     private readonly ILogger<MatchController> _logger;
+    private readonly IMatchRepository _matchRepository;
 
-    public MatchController(ILogger<MatchController> logger)
+    public MatchController(ILogger<MatchController> logger, IMatchRepository matchRepository)
     {
         _logger = logger;
+        _matchRepository = matchRepository;
     }
 
     [HttpPost("UpdateMatchResult")]
     public string UpdateMatchResult(int matchId, int matchEvent)
     {
         // 取得比賽
-        var match = MatchResultDatabase.CreateOrGetMatch(matchId);
+        var match = _matchRepository.GetExistingMatch(matchId);
         var originalResult = match.MatchResult;
         
         // 處理取消事件
@@ -88,7 +90,7 @@ public class MatchController : ControllerBase
     [HttpGet("DisplayMatchResult")]
     public string DisplayMatchResult(int matchId)
     {
-        var match = MatchResultDatabase.GetMatch(matchId);
+        var match = _matchRepository.GetMatch(matchId);
         var matchResult = match?.MatchResult ?? "";
         
         if (string.IsNullOrEmpty(matchResult))

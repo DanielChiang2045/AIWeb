@@ -3,6 +3,7 @@ using NSubstitute;
 using Xunit;
 using AIWeb.Controllers;
 using AIWeb;
+using Assert = Xunit.Assert;
 
 namespace AIWeb.Tests;
 
@@ -31,6 +32,8 @@ public class MatchControllerTests
             field.SetValue(null, dict);
         }
     }
+    [SetUp]
+    public 
 
     [Fact]
     public void UpdateMatchResult_GivenEmptyMatch_WhenHomeGoalEvent_ThenShouldReturnH()
