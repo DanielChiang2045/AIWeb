@@ -22,7 +22,7 @@ public static class MatchResultDatabase
     {
         if (!_matches.ContainsKey(matchId))
         {
-            _matches[matchId] = new Match { MatchId = matchId, MatchResult = "" };
+            throw new ArgumentException($"Match ID {matchId} does not exist");
         }
         return _matches[matchId];
     }
