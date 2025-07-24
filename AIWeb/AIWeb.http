@@ -1,0 +1,6 @@
+@AIWeb_HostAddress = http://localhost:5232
+
+GET {{AIWeb_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
