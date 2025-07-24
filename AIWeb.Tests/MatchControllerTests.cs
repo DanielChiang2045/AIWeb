@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Moq;
+using NSubstitute;
+using Xunit;
 using AIWeb.Controllers;
 using AIWeb;
 
@@ -8,12 +9,12 @@ namespace AIWeb.Tests;
 public class MatchControllerTests
 {
     private readonly MatchController _controller;
-    private readonly Mock<ILogger<MatchController>> _mockLogger;
+    private readonly ILogger<MatchController> _logger;
 
     public MatchControllerTests()
     {
-        _mockLogger = new Mock<ILogger<MatchController>>();
-        _controller = new MatchController(_mockLogger.Object);
+        _logger = Substitute.For<ILogger<MatchController>>();
+        _controller = new MatchController(_logger);
         
         // 每次測試前清理靜態數據
         ClearStaticData();
@@ -32,54 +33,69 @@ public class MatchControllerTests
     }
 
     [Fact]
-    public void UpdateMatchResult_HomeGoal_ShouldReturnH()
+    public void UpdateMatchResult_GivenEmptyMatch_WhenHomeGoalEvent_ThenShouldReturnH()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         int homeGoalEvent = (int)MatchEvent.HomeGoal;
 
-        // Act
+        // When
         var result = _controller.UpdateMatchResult(matchId, homeGoalEvent);
 
-        // Assert
+        // Then
         Assert.Equal("H", result);
     }
 
     [Fact]
-    public void UpdateMatchResult_AwayGoal_ShouldReturnA()
+    public void UpdateMatchResult_GivenEmptyMatch_WhenAwayGoalEvent_ThenShouldReturnA()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         int awayGoalEvent = (int)MatchEvent.AwayGoal;
 
-        // Act
+        // When
         var result = _controller.UpdateMatchResult(matchId, awayGoalEvent);
 
-        // Assert
+        // Then
         Assert.Equal("A", result);
     }
 
     [Fact]
-    public void UpdateMatchResult_NextPeriod_ShouldReturnSemicolon()
+    public void UpdateMatchResult_GivenEmptyMatch_WhenNextPeriodEvent_ThenShouldReturnSemicolon()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         int nextPeriodEvent = (int)MatchEvent.NextPeriod;
 
-        // Act
+        // When
         var result = _controller.UpdateMatchResult(matchId, nextPeriodEvent);
 
-        // Assert
+        // Then
         Assert.Equal(";", result);
     }
 
     [Fact]
-    public void UpdateMatchResult_SequentialEvents_ShouldAccumulate()
+    public void UpdateMatchResult_GivenMatchWithSemicolon_WhenNextPeriodEvent_ThenShouldNotAddAnotherSemicolon()
     {
-        // Arrange
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod); // 添加第一個分號
+        
+        // When
+        var result = _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod); // 嘗試添加第二個分號
+
+        // Then
+        Assert.Equal("H;", result); // 應該還是只有一個分號
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenEmptyMatch_WhenSequentialEvents_ThenShouldAccumulate()
+    {
+        // Given
         int matchId = 91;
 
-        // Act & Assert
+        // When & Then
         var result1 = _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
         Assert.Equal("H", result1);
 
@@ -96,98 +112,227 @@ public class MatchControllerTests
         Assert.Equal("HAA;H", result5);
     }
 
+    // Cancel功能測試案例
+
     [Fact]
-    public void UpdateMatchResult_NewMatch_ShouldCreateMatch()
+    public void UpdateMatchResult_GivenMatchResultHHA_WhenAwayCancelEvent_ThenShouldReturnHH()
     {
-        // Arrange
-        int newMatchId = 99;
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // H
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // HH
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal); // HHA
 
-        // Act
-        var result = _controller.UpdateMatchResult(newMatchId, (int)MatchEvent.HomeGoal);
+        // When
+        var result = _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayCancel);
 
-        // Assert
+        // Then
+        Assert.Equal("HH", result);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenMatchResultHH_WhenHomeCancelEvent_ThenShouldReturnH()
+    {
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // H
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // HH
+
+        // When
+        var result = _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeCancel);
+
+        // Then
         Assert.Equal("H", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_EmptyResult_ShouldReturnFirstHalf00()
+    public void UpdateMatchResult_GivenMatchResultH_WhenHomeCancelEvent_ThenShouldReturnEmpty()
     {
-        // Arrange
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // H
+
+        // When
+        var result = _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeCancel);
+
+        // Then
+        Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenMatchResultHASemicolon_WhenAwayCancelEvent_ThenShouldReturnHSemicolon()
+    {
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // H
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal); // HA
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod); // HA;
+
+        // When
+        var result = _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayCancel);
+
+        // Then
+        Assert.Equal("H;", result);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenMatchResultAHSemicolon_WhenHomeCancelEvent_ThenShouldReturnASemicolon()
+    {
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal); // A
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // AH
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod); // AH;
+
+        // When
+        var result = _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeCancel);
+
+        // Then
+        Assert.Equal("A;", result);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenMatchResultAH_WhenAwayCancelEvent_ThenShouldThrowException()
+    {
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal); // A
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // AH
+
+        // When & Then
+        var exception = Assert.Throws<UpdateMatchResultException>(() =>
+            _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayCancel));
+
+        Assert.Equal(matchId, exception.MatchId);
+        Assert.Equal("AH", exception.OriginalMatchResult);
+        Assert.Contains("AwayCancel", exception.Message);
+        Assert.Contains("Expected last character to be 'A' but found 'H'", exception.Message);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenEmptyResult_WhenHomeCancelEvent_ThenShouldThrowException()
+    {
+        // Given
         int matchId = 91;
 
-        // Act
+        // When & Then
+        var exception = Assert.Throws<UpdateMatchResultException>(() =>
+            _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeCancel));
+
+        Assert.Equal(matchId, exception.MatchId);
+        Assert.Equal("", exception.OriginalMatchResult);
+        Assert.Contains("HomeCancel", exception.Message);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenMatchResultH_WhenAwayCancelEvent_ThenShouldThrowException()
+    {
+        // Given
+        int matchId = 91;
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // H
+
+        // When & Then
+        var exception = Assert.Throws<UpdateMatchResultException>(() =>
+            _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayCancel));
+
+        Assert.Equal(matchId, exception.MatchId);
+        Assert.Equal("H", exception.OriginalMatchResult);
+        Assert.Contains("AwayCancel", exception.Message);
+        Assert.Contains("Expected last character to be 'A' but found 'H'", exception.Message);
+    }
+
+    [Fact]
+    public void UpdateMatchResult_GivenNewMatchId_WhenHomeGoalEvent_ThenShouldCreateMatchAndReturnH()
+    {
+        // Given
+        int newMatchId = 99;
+
+        // When
+        var result = _controller.UpdateMatchResult(newMatchId, (int)MatchEvent.HomeGoal);
+
+        // Then
+        Assert.Equal("H", result);
+    }
+
+    [Fact]
+    public void DisplayMatchResult_GivenEmptyResult_WhenCalled_ThenShouldReturnFirstHalf00()
+    {
+        // Given
+        int matchId = 91;
+
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
+        // Then
         Assert.Equal("0 : 0 (First Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_H_ShouldReturn10FirstHalf()
+    public void DisplayMatchResult_GivenMatchResultH_WhenCalled_ThenShouldReturn10FirstHalf()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
+        // Then
         Assert.Equal("1 : 0 (First Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_HA_ShouldReturn11FirstHalf()
+    public void DisplayMatchResult_GivenMatchResultHA_WhenCalled_ThenShouldReturn11FirstHalf()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal);
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
+        // Then
         Assert.Equal("1 : 1 (First Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_HAH_ShouldReturn21FirstHalf()
+    public void DisplayMatchResult_GivenMatchResultHAH_WhenCalled_ThenShouldReturn21FirstHalf()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
+        // Then
         Assert.Equal("2 : 1 (First Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_HAHSemicolon_ShouldReturn21SecondHalf()
+    public void DisplayMatchResult_GivenMatchResultHAHSemicolon_WhenCalled_ThenShouldReturn21SecondHalf()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod);
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
+        // Then
         Assert.Equal("2 : 1 (Second Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_HAHSemicolonA_ShouldReturn22SecondHalf()
+    public void DisplayMatchResult_GivenMatchResultHAHSemicolonA_WhenCalled_ThenShouldReturn22SecondHalf()
     {
-        // Arrange
+        // Given
         int matchId = 91;
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal);
@@ -195,41 +340,40 @@ public class MatchControllerTests
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod);
         _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal);
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
+        // Then
         Assert.Equal("2 : 2 (Second Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_NonExistentMatch_ShouldReturn00FirstHalf()
+    public void DisplayMatchResult_GivenNonExistentMatch_WhenCalled_ThenShouldReturn00FirstHalf()
     {
-        // Arrange
+        // Given
         int nonExistentMatchId = 999;
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(nonExistentMatchId);
 
-        // Assert
+        // Then
         Assert.Equal("0 : 0 (First Half)", result);
     }
 
     [Fact]
-    public void DisplayMatchResult_MultiplePeriods_ShouldShowCorrectPeriod()
+    public void DisplayMatchResult_GivenMatchAfterCancel_WhenCalled_ThenShouldShowCorrectScore()
     {
-        // Arrange
+        // Given
         int matchId = 91;
-        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
-        _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod);
-        _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal);
-        _controller.UpdateMatchResult(matchId, (int)MatchEvent.NextPeriod);
-        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal);
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // H
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.AwayGoal); // HA
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeGoal); // HAH
+        _controller.UpdateMatchResult(matchId, (int)MatchEvent.HomeCancel); // HA
 
-        // Act
+        // When
         var result = _controller.DisplayMatchResult(matchId);
 
-        // Assert
-        Assert.Equal("2 : 1 (Third Period)", result);
+        // Then
+        Assert.Equal("1 : 1 (First Half)", result);
     }
 } 
