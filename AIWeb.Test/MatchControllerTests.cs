@@ -11,11 +11,13 @@ public class MatchControllerTests
 {
     private readonly MatchController _controller;
     private readonly ILogger<MatchController> _logger;
+    private readonly IMatchRepository _matchRepository;
 
     public MatchControllerTests()
     {
         _logger = Substitute.For<ILogger<MatchController>>();
-        _controller = new MatchController(_logger);
+        _matchRepository = new MatchRepository();
+        _controller = new MatchController(_logger, _matchRepository);
         
         // 每次測試前清理靜態數據
         ClearStaticData();
@@ -24,16 +26,8 @@ public class MatchControllerTests
     private void ClearStaticData()
     {
         // 清理靜態數據，避免測試間相互影響
-        var field = typeof(MatchResultDatabase).GetField("_matches", 
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        if (field != null)
-        {
-            var dict = new Dictionary<int, Match> { { 91, new Match { MatchId = 91, MatchResult = "" } } };
-            field.SetValue(null, dict);
-        }
+        _matchRepository.Reset();
     }
-    [SetUp]
-    public 
 
     [Fact]
     public void UpdateMatchResult_GivenEmptyMatch_WhenHomeGoalEvent_ThenShouldReturnH()
@@ -245,16 +239,16 @@ public class MatchControllerTests
     }
 
     [Fact]
-    public void UpdateMatchResult_GivenNewMatchId_WhenHomeGoalEvent_ThenShouldCreateMatchAndReturnH()
+    public void UpdateMatchResult_GivenInvalidMatchId_WhenHomeGoalEvent_ThenShouldThrowException()
     {
         // Given
-        int newMatchId = 99;
+        int invalidMatchId = 99;
 
-        // When
-        var result = _controller.UpdateMatchResult(newMatchId, (int)MatchEvent.HomeGoal);
+        // When & Then
+        var exception = Assert.Throws<NullReferenceException>(() =>
+            _controller.UpdateMatchResult(invalidMatchId, (int)MatchEvent.HomeGoal));
 
-        // Then
-        Assert.Equal("H", result);
+        Assert.Contains("Match with ID 99 not found", exception.Message);
     }
 
     [Fact]
