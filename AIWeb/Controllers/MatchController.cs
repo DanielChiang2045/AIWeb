@@ -16,7 +16,7 @@ public class MatchController : ControllerBase
     [HttpPost("UpdateMatchResult")]
     public string UpdateMatchResult(int matchId, int matchEvent)
     {
-        // 取得或建立比賽
+        // 取得比賽
         var match = MatchResultDatabase.CreateOrGetMatch(matchId);
         var originalResult = match.MatchResult;
         
